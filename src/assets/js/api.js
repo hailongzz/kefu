@@ -33,7 +33,7 @@ Api.joinChannel = (data = {})=>Axios('/api/UMsg/joinChannel',data,'post')
 // Api.channelUserList = (data = {})=>Axios('/api/uc/channelUserList',data,'post')
 
 //刷新token  调取长连接接口
-Api.refreshMsgToken = (data = {}) =>Axios('/invokMessage/account/refreshMsgToken',data,'post')
+Api.refreshMsgToken = (data = {}) =>Axios('/api/msg/invokMessageInterface',data,'post')
 
 //初始化频道  返回频道用户列表
 Api.initOrder = (data={})=>Axios('/api/uOrder/initOrder',data,'post')
@@ -55,5 +55,7 @@ Api.uploadOssImg = (data={})=>Axios('/api/Upload/uploadOssImg',data,'post')
 //上传语音接口
 Api.uploadOssFile = (data={})=>Axios('/api/upload/uploadOssFile',data,'post')
 
-//
+//获取常见问题和常用语
+Api.questionList = (data={})=>Axios('/api/uorder/questionList',data,'post')
+Api.wordList = (data={})=>Axios('/api/uorder/wordList',data,'post')
 export default Api

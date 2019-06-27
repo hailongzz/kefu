@@ -151,7 +151,7 @@
     <!-- 左边侧栏结束 -->
     <!-- 地图开始 -->
     <div class="locationSign">
-      位置: {全国}
+      位置: {{kefuLocation}}
     </div>
     <div class="SwitchPage" @click="SwitchPage" v-show='containerVisible2'>
       点击进入抢单页面
@@ -162,9 +162,9 @@
       </div>
       <div id="searchResultPanel" style="border:1px solid #C0C0C0;width:150px;height:auto; display:none;"></div>
     </div>
-    <div v-show='containerVisible' id="container">
+    <div v-show='containerVisible' ref="container" id="container">
     </div>
-    <div v-show='containerVisible2' id="container2">
+    <div v-show='containerVisible2' ref="container2" id="container2">
     </div>
     <!-- 地图结束 -->
     <!-- 结束咨询开始 end order -->
@@ -328,7 +328,7 @@
         <ul id="socketMessageListUl"  class="list"> 
           <li v-for="(item,index) in chatMessageList" :key ='index'  class="list-item">
               <!-- 普通消息 -->
-              <div v-if="item.msgType=='groupText' ||  item.msgType=='groupPic' ||  item.msgType=='groupVoice' || item.msgType=='groupMap'" :class="messageStyle(item.accountID)" >
+              <div v-if="item.msgType=='groupText' ||  item.msgType=='groupPic' ||  item.msgType=='groupVoice' || item.msgType=='groupMap'" :class="messageStyle(item.fromUser)" >
                 <img class="message-item-pic" :src="item.msgObj.sh" alt="" >
                 <div data-v-79408788="" class="flex message-box">
                   <div>
@@ -400,7 +400,7 @@
                   <p class="CommonTitle">常用话</p>
                 <ul >
                   <li v-for="(item,index) in this.commonWordList" :key ='index'>
-                   <div class="content">{{item}}</div> <div class="send" @click="sendMessageInfo(item,'groupText')">发送</div>
+                   <div class="content">{{item.content}}</div> <div class="send" @click="sendMessageInfo(item.content,'groupText')">发送</div>
                   </li>
                 </ul>
               </div>
@@ -415,10 +415,10 @@
                 <p class="CommonTitle">常见问题</p>
                 <ul>
                   <li v-for="(item,index) in this.commonProblemList" :key='index'>
-                   <div class="content">
-                     {{item}}
+                    <div class="CommonWord-Problem-title"> {{item.question}}</div>
+                   <div class="content"  v-html="item.answer">
                     </div>
-                    <div class="send" @click="sendMessageInfo(item,'groupText')">
+                    <div class="send" @click="sendMessageInfo(item.answer,'groupText')">
                        发送
                     </div>
                   </li>
@@ -426,7 +426,6 @@
               </div>
             </el-popover>
             <div class="commonProblem" v-popover:popover4>常见问题</div>
-            <div @click="sendLocation">发送位置</div>
           </div>
           <div class="bottom-right">
             <div class="inner-right-input-buttom-right">
@@ -450,6 +449,8 @@
 import {mapState} from 'vuex'
 import * as types from '@/store/mutation-types'
 import Api from '../assets/js/api'
+import cityCode from '../assets/js/cascades'
+import cityLocation from '../assets/js/kefuLocation'
 import axios from 'axios'
 import utils from '../assets/js/utils'
 import { setTimeout, setInterval } from 'timers';
@@ -467,6 +468,7 @@ export default {
     next()
   },
   created(){
+    let _this = this
     //获取个人信息
     this.ListData0={
         "status":"0",
@@ -483,16 +485,24 @@ export default {
     this.$store.dispatch(types.GET_KF_INFO,this.accountID)
     .then(res=>{
       _this.userInfo = res
+      _this.getProblemCom()
       sessionStorage.setItem('userInfo',res)
     }).catch(err=>console.log(err))
 
     if(!sessionStorage.getItem("accountID")){
         this.$router.push('/login')
     }
+    //获取常用语
     //socket  token
-    let _this = this
     //刷新msgtoken 并且开启长连接
-    _this.$store.dispatch(types.REFRESH_MSG_TOKEN,{accountID:sessionStorage.getItem('accountID')})
+    let  ts = Date.parse (new Date ()) / 1000;
+    Api.refreshMsgToken({
+      accountID:sessionStorage.getItem('accountID'),
+      appKey: '7863228592',
+      timestamp: ts,
+      accessToken: sessionStorage.getItem('accessToken'),
+      path: 'account/refreshMsgToken'
+      })
    .then(res=>{
         initWebSocket()
         function initWebSocket(){
@@ -512,9 +522,6 @@ export default {
           }))
           //获取已接单列表
           _this.getListOrder(_this.ListData1)
-
-          //获取地图上未被接单的列表
-          _this.getPushListOrder(_this.ListData0)
           //获取结束单列表
           _this.getEndOrderList(_this.ListData2)
         }
@@ -536,6 +543,7 @@ export default {
                 console.log(data)
                 _this.updataPushMapOverview(List)
                 _this.openSuccess("系统推送一条新单")
+                utils.AudioPlay()
             }else if(data.msgType=="groupText" ||  data.msgType=='groupPic' ||  data.msgType=='groupVoice' || data.msgType=='groupMap'){
                   if(data.groupID==_this.currentServiceInfo.channelID){
                     _this.chatMessageList.push(data)
@@ -565,8 +573,10 @@ export default {
               setTimeout(()=>{
               let div = document.getElementsByClassName('Overlay'+data.msgObj.orderID)
               div.remove(div)
-
               },50)
+            } else if(data.opt=="breakoff"){
+              _this.openError("您的账号在其他机器登陆，请重新登陆")
+              // _this.$router.push("/login")
             }
             setTimeout(()=>{
               _this.handleScroll()
@@ -575,10 +585,10 @@ export default {
           }
         //连接关闭
           _this.websocket.onclose = function (e){
-          clearTimeout(_this.timeoutObj)
-          console.log("connection closed (" + e.code + ")");
-          //重连
-          // reconnect()
+            clearTimeout(_this.timeoutObj)
+            console.log("connection closed (" + e.code + ")");
+            //重连
+            // reconnect()
           }
       }
       function reconnect(){//重新连接
@@ -634,6 +644,7 @@ export default {
       orderSOS:require('../assets/orderSOS.jpg'),
       loadingImg:require('../assets/loading.gif'),
       clock:require('../assets/clock.png'),
+      dingling:require('../assets/ding.mp3'),
       currentO_id:"",
       WxAcodeVisible:false,
       WxAcode:'',//二维码bath64
@@ -660,6 +671,8 @@ export default {
       currentService:"当前服务(0)",
       //已结束服务单列表
       endOrderList:[],
+      gpsList:[],
+      refreshGps:null,
       dialogVisibleTransfer:false,
       TranserList:[],//转移在线客服列表,
       commonWordList:['问候语ni好吗','我不好你个垃圾','我可以帮您查路况，查地点，设置导航位置，没事唠嗑也行！也可以帮你查周围的停车、加油等服务点。'],//常用语消息列表
@@ -691,6 +704,7 @@ export default {
       BMap:{},
       currentGps:{},
       searchLocation:{},//搜索当前地址
+      kefuLocation:'',
       Overlay:{},
       Point:{},
       // socket 部分
@@ -757,88 +771,170 @@ export default {
   },
   mounted(){
     //渲染地图
-     var _this = this; 
-     //推送单的列表的地图1
-      _this.map = new BMap.Map('container')
-      let map = _this.map
-      _this.map.centerAndZoom(new BMap.Point(116.328, 40.020), 15);
-      _this.map.enableScrollWheelZoom(true);
-      // 添加比例尺
-      // _this.map.addControl(new _this.BMap.ScaleControl());
-      _this.map.addControl(new BMap.ScaleControl()); 
-      // 添加缩略地图
-      _this.map.addControl(new BMap.OverviewMapControl());
-    // })
-    //推送myGPS地图2
-     _this.map2 = new BMap.Map('container2')
-      let map2 = _this.map2
-      _this.map2.centerAndZoom(new BMap.Point(116.328, 40.020), 15);
-      _this.map2.enableScrollWheelZoom(true);
-      // 添加比例尺
-      // _this.map.addControl(new _this.BMap.ScaleControl());
-      _this.map2.addControl(new BMap.ScaleControl()); 
-      // 添加缩略地图
-      _this.map2.addControl(new BMap.OverviewMapControl());
-    document.getElementById('socketMessageList').addEventListener('scroll', this.loadingScroll)
-    //自动完成搜索地址并找到并发送
-    function G(id) {
-      return document.getElementById(id);
-    }      // 初始化地图,设置城市和地图级别。
-
-    var ac = new BMap.Autocomplete(    //建立一个自动完成的对象
-      {"input" : "suggestId"
-      ,"location" : map2
-    });
-
-      ac.addEventListener("onhighlight", function(e) {  //鼠标放在下拉列表上的事件
-      var str = "";
-        var _value = e.fromitem.value;
-        var value = "";
-        if (e.fromitem.index > -1) {
-          value = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
-        }    
-        str = "FromItem<br />index = " + e.fromitem.index + "<br />value = " + value;
-        
-        value = "";
-        if (e.toitem.index > -1) {
-          _value = e.toitem.value;
-          value = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
-        }    
-        str += "<br />ToItem<br />index = " + e.toitem.index + "<br />value = " + value;
-        G("searchResultPanel").innerHTML = str;
-      });
-
-      var myValue;
-      ac.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
-      var _value = e.item.value;
-        myValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
-        G("searchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myValue;
-        
-        setPlace();
-      });
-
-      function setPlace(){
-
-        function myFun(){
-          var pp = local.getResults().getPoi(0).point;    //获取第一个智能搜索的结果
-          _this.searchLocation = pp
-          map2.centerAndZoom(pp, 18);
-          map2.addOverlay(new BMap.Marker(pp));    //添加标注
-          let BMap_Marker = document.querySelectorAll('span.BMap_Marker')
-            setTimeout(()=>{
-                for ( let it of BMap_Marker){
-                    it.remove(it)
-                  }
-          },5000)
+          var _this = this; 
+    this.$nextTick(()=>{
+      new Promise((resolve,reject)=>{
+        window.onload = function(){
+          _this.creatMap()
+          _this.kefuLocationInfo()
+          resolve()
         }
-        var local = new BMap.LocalSearch(map2, { //智能搜索
-          onSearchComplete: myFun
-        });
-        local.search(myValue);
-      }
-      
+      }).then(res=>{
+          _this.getPushListOrder(_this.ListData0)
+      }).catch(err=>{
+        console.log(err)
+      })
+    })
   },
+
   methods:{
+    getProblemCom(){
+      let spID = this.userInfo.spID
+      Api.questionList().then(res=>{ //获取常见问题
+        this.commonProblemList = res
+      }).catch(err=>{
+        console.log(err)
+      })
+
+      Api.wordList({spID:spID}).then(res=>{  //获取常用语
+        this.commonWordList = res
+      }).catch(err=>{
+        console.log(err)
+      })
+    },
+    kefuLocationInfo(){
+      let _this = this
+      console.log(this.userInfo)
+      //当前位置
+      function userLocation(){  //调用百度地区获取当前ip地址的方法
+            function myFun(result){
+            var cityName = result.name;
+            _this.map.setCenter(cityName);
+            _this.kefuLocation = cityName
+            //  
+          }
+          var myCity = new BMap.LocalCity();
+          myCity.get(myFun);
+      }
+      let city 
+      let codeArr = this.userInfo.cityCode.split(',')
+      if(codeArr.length>2){
+          let code = codeArr[0]
+          let time = Date.parse(new Date())/1000
+          let isCode = true
+          for(let i=0,j=cityCode.length; i<j;i++){  //遍历省级直辖市
+              if(code == cityCode[i].id){
+                code = cityCode[i].title 
+                _this.map.setCenter(code);
+                _this.kefuLocation = code
+                isCode = false
+                // return code
+                break
+              }
+          }
+      }else{
+          userLocation()
+      }
+
+      // http://127.0.0.1:8080
+
+    },
+    creatMap(){
+     //推送单的列表的地图1
+     var _this = this; 
+      let container = this.$refs.container
+        _this.map = new BMap.Map(container)
+        let map = _this.map
+        _this.map.centerAndZoom(new BMap.Point(116.328, 40.020), 15);
+        _this.map.enableScrollWheelZoom(true);
+        // 添加比例尺
+        // _this.map.addControl(new _this.BMap.ScaleControl());
+        _this.map.addControl(new BMap.ScaleControl()); 
+        // 添加缩略地图
+        _this.map.addControl(new BMap.OverviewMapControl());
+      // })
+      //推送myGPS地图2
+      _this.map2 = new BMap.Map("container2")
+        let map2 = _this.map2
+        _this.map2.centerAndZoom(new BMap.Point(116.328, 40.020), 15);
+        _this.map2.enableScrollWheelZoom(true);
+        // 添加比例尺
+        // _this.map.addControl(new _this.BMap.ScaleControl());
+        _this.map2.addControl(new BMap.ScaleControl()); 
+        // 添加缩略地图
+        _this.map2.addControl(new BMap.OverviewMapControl());
+      document.getElementById('socketMessageList').addEventListener('scroll', this.loadingScroll)
+      //自动完成搜索地址并找到并发送
+      function G(id) {
+        return document.getElementById(id);
+      }      // 初始化地图,设置城市和地图级别。
+
+      var ac = new BMap.Autocomplete(    //建立一个自动完成的对象
+        {"input" : "suggestId"
+        ,"location" : map2
+      });
+        let seachVal = ""
+        ac.addEventListener("onhighlight", function(e) {  //鼠标放在下拉列表上的事件
+        var str = "";
+          var _value = e.fromitem.value;
+          var value = "";
+          if (e.fromitem.index > -1) {
+            value = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+          }    
+          str = "FromItem<br />index = " + e.fromitem.index + "<br />value = " + value;
+          
+          value = "";
+          if (e.toitem.index > -1) {
+            _value = e.toitem.value;
+            value = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+          }    
+          str += "<br />ToItem<br />index = " + e.toitem.index + "<br />value = " + value;
+          G("searchResultPanel").innerHTML = str;
+        });
+
+        var myValue;
+        ac.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+        var _value = e.item.value;
+        seachVal = _value
+        console.log(_value)
+          myValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+          G("searchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myValue;
+          
+          setPlace();
+        });
+
+        function setPlace(){
+          
+          let BMap_Marker = document.querySelectorAll('span.BMap_Marker')
+          console.log(BMap_Marker)
+          if(BMap_Marker.length>1){
+            BMap_Marker[0].remove(BMap_Marker[0])
+          }
+          function myFun(){
+            var sContent =
+            "<h4 style='margin:0 0 5px 0;padding:0.2em 0'>"+seachVal.business+"</h4>"+
+            "<button id='mapbutton' style='cursor: pointer;width: 100px;font-size: 13px;background-color: #4ed7d1;color: white;border-radius: 8px;text-align: center;'>点击发送位置</button>";
+
+            var pp = local.getResults().getPoi(0).point;    //获取第一个智能搜索的结果
+            _this.searchLocation = pp
+            map2.centerAndZoom(pp, 18);
+            let marker = new BMap.Marker(pp)
+            map2.addOverlay(marker);    //添加标注
+            let infoWindow = new BMap.InfoWindow(sContent)  // 创建信息窗口对象
+            marker.addEventListener("click", function(){
+              this.openInfoWindow(infoWindow);      
+              let div = document.getElementById('mapbutton')
+              div.onclick = function(){
+                _this.sendLocation()
+              }
+            });
+          }
+          var local = new BMap.LocalSearch(map2, { //智能搜索
+            onSearchComplete: myFun
+          });
+          local.search(myValue);
+        }
+    },
     getWxAcode(){
       //获取二维码
       let _=this
@@ -849,17 +945,9 @@ export default {
           timestamp: timeStamp
       })
       axios({
-        url:'/oauth/getWxAcodeUnlimit',
-        method:'POST',
-        data:{
-           "scene":"123456",
-            "page":"webpages/pages/webpage"
-        },
-        headers:{
-          appKey: '7863228592',
-          timestamp: timeStamp,
-          sign: util
-        }
+        url:'oauth/wxAcodeUnlimit?appKey=7863228592&timestamp='+timeStamp+'&sign='+util+'&scene=123456&page=webpages/pages/webpage',
+        method:'GET',
+        "content-type":"application/json;charset=UTF-8"
       }).then(res=>{
         console.log(res)
         _.WxAcode ="data:image/jpeg;base64," + res.data.RESULT
@@ -870,6 +958,7 @@ export default {
     SwitchPage(){ //抢单页面切换
       this.containerVisible2 = false
       this.containerVisible = true
+      this.innerRightVisible = false
     },
     SelectTransfer(item,index){ //选择当前客服
       this.Tindex = index
@@ -924,6 +1013,7 @@ export default {
     },
     //第一次加载页面刷新覆盖物
     updataMapOverview(list){
+
       var _this = this;
           //循环遍历增加页面推送工单
           function picOverlay(point,data){
@@ -988,7 +1078,7 @@ export default {
                    h++
                    m=0
                 }
-                Cspan.innerText =  h + '小时'+ m +'分钟' + s +'秒'
+                Cspan.innerText =  h + '小时'+ m +'分钟'
             },1000)
             let OverDiv = document.createElement('div')
             Cspan.appendChild(Ctime)
@@ -1036,13 +1126,13 @@ export default {
               this._div.style.top  = pixel.y - 30 + "px";
             }
           //遍历用户
-          if(list&&list[0]&&list.length>=1){
-              for (let it of list) {
-                let location =  {lng:it.lng,lat:it.lat}
-                let myOverlay = new picOverlay(location,it)
-                _this.map.addOverlay(myOverlay)
-            }
-          }
+                if(list&&list[0]&&list.length>=1){
+                    for (let it of list) {
+                      let location =  {lng:it.lng,lat:it.lat}
+                      let myOverlay = new picOverlay(location,it)
+                      _this.map.addOverlay(myOverlay)
+                  }
+                }
     },
     // 增加 / 更新 / 刷新页面 覆盖物
     updataPushMapOverview(list){
@@ -1108,7 +1198,7 @@ export default {
                  h = m+1>=60 ? h+1 : h +1 >=60 ? 0 : h  
                  m = s+1>=60 ? m+1 : m +1 >=60 ? 0 : m 
                  s = s+1>=60 ? 0 : s+1 
-              Cspan.innerText =  h + '小时'+ m +'分钟' + s +'秒'
+              Cspan.innerText =  h + '小时'+ m +'分钟' 
             },1000)
             let OverDiv = document.createElement('div')
             Cspan.appendChild(Ctime)
@@ -1164,7 +1254,7 @@ export default {
 
           }
     },
-    createPushMapUser(gps){
+    createPushMapUser(list){
           let _this = this
           function picOverlay(point,data){
           //创建页面自定义覆盖物原型方法
@@ -1209,9 +1299,12 @@ export default {
               _._div.style.top  = pixel.y - 30 + "px";
               },10)
             }
-            let location =  {lng:gps.gps.lng,lat:gps.gps.lat}
-            let myOverlay = new picOverlay(location,gps)
-            _this.map2.addOverlay(myOverlay)
+            for(let it of list){
+
+                let location =  {lng:it.gps.lng,lat:it.gps.lat}
+                let myOverlay = new picOverlay(location,it)
+                _this.map2.addOverlay(myOverlay)
+            }
     },
     removeOverlay(){ //删除覆盖物
 
@@ -1297,6 +1390,7 @@ export default {
     //获取右侧消息详情
     getMessageInfo(item,index,option){
       // console.log
+      this.AudioPlay()
       let _that = this
       this.removeOverlay()
       _that.containerVisible = false
@@ -1321,14 +1415,13 @@ export default {
       .then(res=>{
         _that.innerRightOrderMember = res
         console.log(res)
-        _that.getUserLocation(res) //第一次执行
+        _that.getUserLocation(_that.innerRightOrderMember) //第一次执行
         setTimeout(()=>{
-          _that.map2.centerAndZoom(new BMap.Point(_that.currentGps.lng, _that.currentGps.lat),15);
+          console.log(_that.currentGps)
+          if(_that.currentGps.lng){
+            _that.map2.centerAndZoom(new BMap.Point(_that.currentGps.lng, _that.currentGps.lat),15);
+          }
         },1000)
-        setInterval(()=>{
-          _that.removeOverlay()
-          _that.getUserLocation(res) //20秒一次绘图人物定位
-        },30000)
       }).catch(err=>{
         console.log(err)
       })
@@ -1346,16 +1439,17 @@ export default {
     //调用myGPS接口
     getUserLocation(list){
       let _ = this
-      let memberList = list
-      console.log(list)
-        for(let it of memberList){
-          if(it.accountID==_.accountID){
-            continue
-          }
+      let memberList = []
+
+          for(let it of list){
+            if(it.accountID==_.accountID){
+              continue
+            }
             Api.getUserLocation({accountID:it.accountID}).then(res=>{
+              console.log(res)
               if(res.status!=='error'){
-                  it.gps = res
-                  _.createPushMapUser(it)
+                it.gps = res
+                memberList.push(it)
               }
               if(it.userType=='1'){
                 _.currentGps = res 
@@ -1364,6 +1458,19 @@ export default {
               console.log(err)
             })
         }
+      _.removeOverlay()
+      setTimeout(()=>{
+        _.createPushMapUser(memberList) //20秒一次绘图人物定位
+        _.callUserList = memberList
+      },500)
+      if(_.refreshGps){
+        clearInterval(_.refreshGps)
+      }  
+      _.refreshGps =  setInterval(()=>{
+          clearInterval(_.refreshGps)
+          _.removeOverlay()
+          _.createPushMapUser(memberList) //20秒一次绘图人物定位
+      },30000)
 
     },
     getChatLog(channelID){ //获取聊天记录
@@ -1550,6 +1657,7 @@ export default {
             "orderID": _this.currentServiceInfo.orderID
           }
           setTimeout(()=>{
+            console.log(_this.userInfo.accountID)
             _this.$store.dispatch(types.ADD_CHAT_LOG,info).then(res=>{
               _this.socketMessageText = ""
             }).catch(err=>{
@@ -2122,6 +2230,36 @@ export default {
               this.createRoom()
           }
       },
+      AudioPlay(){ //来信息时响应音效
+      let dl = this.dingling
+        var borswer = window.navigator.userAgent.toLowerCase();
+        if ( borswer.indexOf( "ie" ) >= 0 ){
+          //IE内核浏览器
+          var strEmbed = `<embed name="embedPlay" src=${dl} autostart="true" hidden="false" loop="false"></embed>`;
+
+          if (document.getElementsByTagName("embed").length <= 1 )
+            document.getElementsByTagName('body')[0].appendChild( strEmbed );
+          var embed = document.embedPlay;
+
+          //浏览器不支持 audion，则使用 embed 播放
+          embed.volume = 100;
+          //embed.play();这个不需要
+        } else{
+          //非IE内核浏览器
+          let strAudio = document.createElement('audio')
+          strAudio.setAttribute('id',"audioPlay")
+          strAudio.setAttribute('src',dl)
+          strAudio.setAttribute('hidden',false)
+          if (document.getElementsByTagName("audio").length <= 1 ){
+
+          }
+          document.getElementsByTagName('body')[0].appendChild( strAudio );
+          console.log(document.getElementsByTagName('body'))
+          var audio = document.getElementById( "audioPlay" );
+          console.log(audio)
+          audio.play();
+        }
+    } 
   },
   filters:{
     timeFormat:function(v){
@@ -2157,6 +2295,22 @@ export default {
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style lang="less" scoped>
+.CommonWord-Problem-title{
+    width: 100%;
+    text-align: center;
+    color: black;
+    margin-top: 15px;
+}
+.mapbutton{
+    cursor: pointer;
+    width: 100px;
+    height: 35px;
+    background-color: #4ed7d1;
+    color: white;
+    border-radius: 8px;
+    text-align: center;
+    line-height: 35px;
+}
 .ClockTime{
     background-color: white;
     display: inline-block;
@@ -2197,7 +2351,7 @@ export default {
   display: inline-block;
   height: 40px;
   font-size: 14px;
-  position: absolute;
+  position: fixed;
   top: 100px;
   left: 280px;
   color: white;
@@ -2211,7 +2365,7 @@ export default {
   display: inline-block;
   height: 40px;
   font-size: 14px;
-  position: absolute;
+  position: fixed;
   top: 100px;
   left: 580px;
   color: white;
@@ -2226,7 +2380,7 @@ export default {
   display: inline-block;
   height: 40px;
   font-size: 14px;
-  position: absolute;
+  position: fixed;
   top: 100px;
   left: 380px;
   color: white;
@@ -2362,7 +2516,7 @@ export default {
     .message-item{
           margin: 5px 0px 20px 15px;
           display: flex;
-          .card1-self{
+          .card1{
             border-radius: 8px 0px 8px 8px;
             background-color: #4992f7;
             padding: 14px;
@@ -2448,12 +2602,12 @@ export default {
 #container{
     width: 100%;
     height: 100%;
-    position: absolute;
+    min-height: 960px;
   }
   #container2{
     width: 100%;
     height: 100%;
-    position: absolute;
+    min-height: 960px;
   }
 .dialogVisibleOff{
   text-align: center;
@@ -2517,7 +2671,7 @@ export default {
     justify-content: space-between;
     position: fixed;
     background: white;
-    z-index: 2;
+    z-index:3;
     box-shadow: 0px 1px 6px rgb(124, 106, 106);
     .nav-left{
           display: flex;
@@ -2559,7 +2713,7 @@ export default {
 .inner{
       background-color: gainsboro;
   .inner-left{
-        position: fixed;
+        position: absolute;
         z-index: 1;
         width: 260px;
         padding-top: 100px;
@@ -2621,13 +2775,14 @@ export default {
         }
   }
   .inner-right{
+        z-index: 2;
         width: 600px;
         height: auto;
         background-color: white;
         border-radius: 8px;
-        position: fixed;
+        position: absolute;
         right: 0;
-        margin-top: 80px;
+        top: 80px;
         box-shadow: 0px 1px 6px gainsboro;
         .inner-right-nav{
           display: flex;

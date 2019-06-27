@@ -34,7 +34,7 @@
         },
         methods:{
             btn(){
-            window.location.href = "http://oauth.jiama.online/oauth/login?which=username&display=pc&appKey=7863228592&redirect_url=http:127.0.0.1:8080";
+            window.location.href = "https://oauth.jiama.online/oauth/login?which=username&display=pc&appKey=7863228592&redirect_url=https://services.jiama.online";
             },
             
         }

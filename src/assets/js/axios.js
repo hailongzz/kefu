@@ -2,7 +2,7 @@ import axios from 'axios'
 import utils from './utils'
 // 设置全局axios默认值
 // axios.defaults.timeout = 30000; //30s的超时验证
-axios.defaults.headers.post['Content-Type'] = 'application/json;charset=UTF-8'
+// axios.defaults.headers.post['Content-Type'] = 'application/json;charset=UTF-8'
 
 //获取验签
 let  timeStamp = Date.parse (new Date ()) / 1000;
@@ -13,10 +13,13 @@ let  timeStamp = Date.parse (new Date ()) / 1000;
       accessToken:sessionStorage.getItem('accessToken'),
       accountID:sessionStorage.getItem('accountID'),
       })
-  return util
+    return util
   }
+  console.log(timeStamp)
+  console.log(getSign())
   //添加头部
   let headers = {
+    'Content-Type':'application/json;charset=UTF-8',
     appKey: '7863228592',
     timestamp: timeStamp,
     accessToken:sessionStorage.getItem('accessToken'),

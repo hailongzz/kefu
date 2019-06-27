@@ -1,3 +1,5 @@
+
+
 function formatTime(t) {
     var r = t.getFullYear(),
       e = t.getMonth() + 1,
@@ -108,8 +110,88 @@ function formatTime(t) {
             console.log(url)
         };
     }
-//压缩图片
 
+  function editCityCode(json){//为省市县重新赋值
+          
+      let cl = cityLocation 
+      let codeGroup = []
+      let codeGroupChild = []
+      for(let i=0;i<codeArr.length;i++){
+        codeGroupChild = []
+      let cityCodeTwo = codeArr[i].substring(0,2)
+          for (let j=0;j<codeArr.length;j++){
+              if(codeArr[j].substring(0,2)==cityCodeTwo){   //前两位相同的加入
+                codeGroupChild.push(codeArr[j])
+              }
+          }
+          codeGroup.push([...new Set(codeGroupChild)])
+      }
+      codeGroup = [...new Set(codeGroup)]   //得到数列的组数以及遍历的次数
+      let a,b,c,d,e,f,g,h,i,j,k,l,m,n 
+      for( a=0; a<codeGroup.length;a++){  //遍历多少次
+            //假设第一次
+            for( b=0; b<cl.length;b++){      //第一次 遍历省级并赋值
+              if( cl[b].id == codeGroup[a][0]){         
+                cl[b].checkArr[0].type="1"
+                cl[b].checkArr[0].isChecked="1"
+                console.log(cl[b])
+                for( c=0; c<cl[b].children.length;c++){ //遍历市级并赋值
+                  if(cl[b].children[c].id== codeGroup[a][1]){
+                    cl[b].children[c].checkArr[0].type="1"
+                    cl[b].children[c].checkArr[0].isChecked="1"
+                      console.log(cl[b].children[c])
+                      let codeCounty = codeGroup[a].splice(2) //得到市后面的区
+                      console.log(codeCounty)
+                      for(e=0;e<codeCounty.length;e++){
+                          for( d=0; d<cl[b].children[c].children.length;d++){ //遍历区/县级并赋值
+                          console.log('jinlaile')
+                            if(cl[b].children[c].children[d].id == codeCounty[e]){
+                              cl[b].children[c].children[d].checkArr[0].type="1"
+                              cl[b].children[c].children[d].checkArr[0].isChecked="1"
+                              console.log(cl[b].children[c].children[d])
+                            }
+                        }
+                      }
+                  }
+                }
+              }
+          }
+        }
+
+      console.log(cl)
+   }  
+  
+//压缩图片
+ function AudioPlay(){ //来信息时响应音效
+  let dl = this.dingling
+    var borswer = window.navigator.userAgent.toLowerCase();
+    if ( borswer.indexOf( "ie" ) >= 0 ){
+      //IE内核浏览器
+      var strEmbed = `<embed name="embedPlay" src=${dl} autostart="true" hidden="false" loop="false"></embed>`;
+
+      if (document.getElementsByTagName("embed").length <= 1 )
+        document.getElementsByTagName('body')[0].appendChild( strEmbed );
+      var embed = document.embedPlay;
+
+      //浏览器不支持 audion，则使用 embed 播放
+      embed.volume = 100;
+      //embed.play();这个不需要
+    } else{
+      //非IE内核浏览器
+      let strAudio = document.createElement('audio')
+      strAudio.setAttribute('id',"audioPlay")
+      strAudio.setAttribute('src',dl)
+      strAudio.setAttribute('hidden',false)
+      if (document.getElementsByTagName("audio").length <= 1 ){
+
+      }
+      document.getElementsByTagName('body')[0].appendChild( strAudio );
+      console.log(document.getElementsByTagName('body'))
+      var audio = document.getElementById( "audioPlay" );
+      console.log(audio)
+      audio.play();
+    }
+} 
   /**
  * 获取url ?后面的传值
  */
@@ -131,6 +213,8 @@ export default {
     objectToUrlParams: objectToUrlParams,
     formatData: formatData,
     compressPictures:compressPictures,
+    editCityCode:editCityCode,
+    AudioPlay:AudioPlay,
     scene_decode: function(t) {
       var r = (t + "").split(","),
         e = {};
